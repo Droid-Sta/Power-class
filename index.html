@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>VAG Engine Selector</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(to bottom, #203a43, #2c5364);
+            min-height: 100vh;
+            display: flex; justify-content: center; align-items: center;
+            color: #fff; padding: 20px;
+        }
+        .container {
+            background: rgba(255,255,255,0.08);
+            backdrop-filter: blur(10px);
+            border-radius: 20px; padding: 30px; max-width: 600px; width: 100%;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2);
+        }
+        h1 { text-align: center; margin-bottom: 10px; font-size: 1.6rem; letter-spacing: 1px; }
+        .subtitle { text-align: center; opacity: 0.8; margin-bottom: 20px; font-size: 0.9rem; }
+
+        label { display: block; margin-top: 15px; font-size: 0.9rem; opacity: 0.9; }
+
+        select {
+            width: 100%; padding: 12px; margin-top: 5px; border-radius: 10px;
+            border: none; background: rgba(255,255,255,0.15); color: #fff;
+            font-size: 1rem; font-family: monospace; letter-spacing: 1px;
+            outline: none; transition: 0.3s; appearance: none; -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M2%204l4%204%204-4z%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat; background-position: right 10px center;
+            cursor: pointer;
+        }
+        select:focus { background: rgba(255,255,255,0.25); box-shadow: 0 0 0 2px #4a90e2; }
+        select option { background: #203a43; color: #fff; }
+
+        .info-card {
+            margin-top: 20px; padding: 20px; background: rgba(0,0,0,0.3);
+            border-radius: 12px; display: none; word-break: break-word;
+        }
+        .info-card.show { display: block; }
+        .record {
+            border-bottom: 1px solid rgba(255,255,255,0.15);
+            padding: 12px 0;
+        }
+        .record:last-child { border-bottom: none; }
+        .record-title {
+            font-size: 1.1rem; font-weight: 700; letter-spacing: 1px; margin-bottom: 8px;
+            color: #4a90e2;
+        }
+        .record-details {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 8px; font-size: 0.9rem;
+        }
+        .detail-item {
+            background: rgba(255,255,255,0.1); padding: 8px; border-radius: 8px;
+        }
+        .detail-label {
+            font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;
+        }
+        .detail-value {
+            font-weight: 600; letter-spacing: 0.5px;
+        }
+        .comment {
+            margin-top: 8px; font-style: italic; opacity: 0.85; font-size: 0.85rem;
+        }
+        .empty-message {
+            text-align: center; opacity: 0.7; padding: 20px; display: none;
+        }
+        .info { margin-top: 15px; font-size: 0.8rem; opacity: 0.7; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 VAG Engine Info</h1>
+        <div class="subtitle">Выберите двигатель</div>
+
+        <label for="engineSelect">Engine (мотор):</label>
+        <select id="engineSelect">
+            <option value="">-- Выберите двигатель --</option>
+        </select>
+
+        <div class="info-card" id="infoCard">
+            <!-- Сюда будут добавляться записи динамически -->
+        </div>
+        <div class="empty-message" id="emptyMessage">Данные не найдены</div>
+
+        <div class="info">Источник: Drive2, база моторов VAG</div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        // ================= ДАННЫЕ (взяты из таблицы, исключены пустые engine) =================
+        const engines = [
+            { engine: "AXX", powerclass: "80", powerhp: "200", model: "Golf 5 GTI", year: "2005", comments: "R4 2.0 TFSI EA113" },
+            { engine: "AXZ", powerclass: "9E", powerhp: "250", model: "Passat B6", year: "", comments: "3.2 Petrol" },
+            { engine: "ASB", powerclass: "92", powerhp: "232", model: "Audi A6", year: "", comments: "3.0 Diesel" },
+            { engine: "BGU", powerclass: "37", powerhp: "102", model: "Golf 5", year: "2004", comments: "R4 1.6 EA113" },
+            { engine: "BKD", powerclass: "FE", powerhp: "140", model: "Golf 5", year: "", comments: "2.0 TDI" },
+            { engine: "BLF", powerclass: "42", powerhp: "115", model: "Golf 5", year: "", comments: "1.6 FSI" },
+            { engine: "BLF", powerclass: "42", powerhp: "116", model: "Octavia A5", year: "2008", comments: "1.6 Petrol" },
+            { engine: "BLG", powerclass: "6A", powerhp: "170", model: "Golf", year: "", comments: "1.4 TSI Twinch" },
+            { engine: "BLR", powerclass: "5B", powerhp: "150", model: "", year: "", comments: "" },
+            { engine: "BLS", powerclass: "FE", powerhp: "105", model: "Touran", year: "2008", comments: "1.6 TDI" },
+            { engine: "BLV", powerclass: "B6", powerhp: "280", model: "", year: "", comments: "" },
+            { engine: "BMY", powerclass: "54", powerhp: "140", model: "Touran", year: "", comments: "1.4 TSI Twinch" },
+            { engine: "BSE", powerclass: "37", powerhp: "102", model: "Jetta 5", year: "2009", comments: "1.6 Petrol" },
+            { engine: "BSF", powerclass: "37", powerhp: "102", model: "Golf 5", year: "2005", comments: "1.6 SRE" },
+            { engine: "BUD", powerclass: "28", powerhp: "80", model: "Golf 5", year: "", comments: "1.4" },
+            { engine: "BVX", powerclass: "5B", powerhp: "150", model: "", year: "", comments: "2.0" },
+            { engine: "BVY", powerclass: "5B", powerhp: "150", model: "Passat", year: "2008", comments: "R4 2.0 FSI EA113" },
+            { engine: "BWA", powerclass: "80", powerhp: "200", model: "", year: "", comments: "" },
+            { engine: "BWS", powerclass: "B9", powerhp: "300", model: "Passat B6", year: "", comments: "3.6" },
+            { engine: "BXE", powerclass: "3A*", powerhp: "105", model: "Golf", year: "", comments: "" },
+            { engine: "BZB", powerclass: "63", powerhp: "160", model: "Passat B6", year: "", comments: "" },
+            { engine: "CAAA", powerclass: "41", powerhp: "84", model: "T5", year: "", comments: "" },
+            { engine: "CAAC", powerclass: "FE", powerhp: "140", model: "T5 Multivan", year: "", comments: "R4 2.0 TDI EA189" },
+            { engine: "CABD", powerclass: "6A", powerhp: "170", model: "Audi", year: "", comments: "1.8 TFSI" },
+            { engine: "CAEB", powerclass: "88", powerhp: "211", model: "", year: "", comments: "" },
+            { engine: "CAED", powerclass: "8F", powerhp: "220", model: "", year: "", comments: "" },
+            { engine: "CAGB", powerclass: "51", powerhp: "136", model: "Audi", year: "", comments: "2.0 Diesel" },
+            { engine: "CAVA", powerclass: "5B", powerhp: "150", model: "Tiguan", year: "", comments: "R4 1.4 TFSI EA111" },
+            { engine: "CAVB", powerclass: "6A", powerhp: "170", model: "", year: "", comments: "" },
+            { engine: "CAVC", powerclass: "54", powerhp: "140", model: "", year: "", comments: "" },
+            { engine: "CAVD", powerclass: "5B", powerhp: "160", model: "Scirocco", year: "2012", comments: "1.4 TSI Twinch" },
+            { engine: "CAVE", powerclass: "3F", powerhp: "180", model: "Plol HB GTI", year: "2011", comments: "" },
+            { engine: "CAWA", powerclass: "6A", powerhp: "170", model: "Tiguan", year: "", comments: "2.0" },
+            { engine: "CAWB", powerclass: "80", powerhp: "200", model: "Tiguan", year: "", comments: "2.0" },
+            { engine: "CAXA", powerclass: "42", powerhp: "122", model: "Golf/Passat", year: "", comments: "1.4 TSI" },
+            { engine: "CAXC", powerclass: "49", powerhp: "125", model: "Audi A3 8P", year: "2010", comments: "R4 1.4 TFSI EA111" },
+            { engine: "CAYB", powerclass: "2F", powerhp: "90", model: "Rapid", year: "2015", comments: "R4 1.6 TDI EA189" },
+            { engine: "CAYC", powerclass: "3A", powerhp: "105", model: "Octavia A5", year: "2011", comments: "1.6 TDI CR" },
+            { engine: "CAYC", powerclass: "3A", powerhp: "105", model: "Touran", year: "2011", comments: "1.6 TDI CR" },
+            { engine: "CAYD", powerclass: "55", powerhp: "102", model: "Caddy", year: "2011", comments: "R4 1.6 TDI EA189 - Simos PCR 2.1" },
+            { engine: "CAYE", powerclass: "24", powerhp: "75", model: "Caddy", year: "2012", comments: "R4 1.6 TDI EA189" },
+            { engine: "CBAB", powerclass: "FE", powerhp: "140", model: "Passat/Tiguan", year: "", comments: "2.0 TDI" },
+            { engine: "CBZA", powerclass: "21", powerhp: "86", model: "Rapid", year: "2013", comments: "1.2" },
+            { engine: "CBZB", powerclass: "39", powerhp: "105", model: "Yety", year: "2012", comments: "1.2 TSI" },
+            { engine: "CCTA", powerclass: "80", powerhp: "200", model: "", year: "", comments: "" },
+            { engine: "CCZA", powerclass: "80", powerhp: "200", model: "", year: "", comments: "" },
+            { engine: "CCZB", powerclass: "88", powerhp: "211", model: "Golf GTI", year: "2010", comments: "2.0 TFSI" },
+            { engine: "CCZC", powerclass: "6A", powerhp: "170", model: "Audi Q3", year: "", comments: "" },
+            { engine: "CCZD", powerclass: "6F", powerhp: "180", model: "Tiguan", year: "", comments: "" },
+            { engine: "CDAA", powerclass: "63", powerhp: "160", model: "Passat CC/Octavia", year: "", comments: "" },
+            { engine: "CDAB", powerclass: "5D", powerhp: "152", model: "Passat CC", year: "", comments: "" },
+            { engine: "CDAB", powerclass: "5D", powerhp: "152", model: "Octavia A5", year: "2012", comments: "" },
+            { engine: "CDAB", powerclass: "5D", powerhp: "152", model: "Yety/Superb", year: "2010", comments: "4x4" },
+            { engine: "CDGA", powerclass: "0E", powerhp: "150", model: "Passat", year: "", comments: "1.4 TSI Ecofuel" },
+            { engine: "CDHA", powerclass: "42", powerhp: "120", model: "Audi A4", year: "", comments: "1.8 TFSI" },
+            { engine: "CDHB", powerclass: "63", powerhp: "160", model: "Audi A4", year: "", comments: "1.8 TFSI - MED17.5" },
+            { engine: "CDLA", powerclass: "AC", powerhp: "265", model: "Scirocco R", year: "2012", comments: "R4 2.0 TFSI EA113" },
+            { engine: "CDLC", powerclass: "A5", powerhp: "256", model: "", year: "", comments: "" },
+            { engine: "CDLC", powerclass: "9A", powerhp: "265", model: "", year: "", comments: "" },
+            { engine: "CDLJ", powerclass: "8F", powerhp: "220", model: "", year: "", comments: "" },
+            { engine: "CDLK", powerclass: "5E", powerhp: "280", model: "", year: "", comments: "" },
+            { engine: "CDNB", powerclass: "6F", powerhp: "179", model: "Audi A6", year: "", comments: "2.0" },
+            { engine: "CDNC", powerclass: "88", powerhp: "211", model: "", year: "", comments: "" },
+            { engine: "CDVA", powerclass: "12", powerhp: "260", model: "Superb/Eos", year: "", comments: "" },
+            { engine: "CDVB", powerclass: "B6", powerhp: "280", model: "", year: "", comments: "" },
+            { engine: "CEPA", powerclass: "C0", powerhp: "340", model: "Audi TT RS", year: "", comments: "2.5" },
+            { engine: "CFBA", powerclass: "26", powerhp: "134", model: "Sagitar", year: "2010", comments: "R4 1.4 TFSI EA111" },
+            { engine: "CFCA", powerclass: "2B", powerhp: "180", model: "T6 California", year: "2018", comments: "2.0 TDI" },
+            { engine: "CFFB", powerclass: "FE", powerhp: "140", model: "Tiguan", year: "2013", comments: "2.0 TDI CR" },
+            { engine: "CFGC", powerclass: "60", powerhp: "177", model: "Tiguan/Passat", year: "2015", comments: "2.0 TDI CR" },
+            { engine: "CFGB", powerclass: "FE", powerhp: "170", model: "", year: "", comments: "" },
+            { engine: "CFHC", powerclass: "54", powerhp: "140", model: "Octavia A5 Scout", year: "", comments: "2.0 TDI 4x4" },
+            { engine: "CFHF", powerclass: "02", powerhp: "110", model: "Octavia A5 Engl", year: "2012", comments: "TDI" },
+            { engine: "CFNA", powerclass: "07", powerhp: "105", model: "Polo Sedan", year: "2011", comments: "2.0" },
+            { engine: "CFNB", powerclass: "2C", powerhp: "85", model: "", year: "", comments: "" },
+            { engine: "CFWA", powerclass: "FE", powerhp: "75", model: "", year: "", comments: "" },
+            { engine: "CGGA", powerclass: "28", powerhp: "80", model: "Golf 6", year: "2012", comments: "1.4" },
+            { engine: "CGGB", powerclass: "2C", powerhp: "86", model: "Polo Hatchback", year: "2010", comments: "1.6" },
+            { engine: "CGLC", powerclass: "60", powerhp: "177", model: "Audi A4", year: "2014", comments: "R4 2.0 TDI EA189" },
+            { engine: "CGPA", powerclass: "20", powerhp: "69", model: "Fabia", year: "2010", comments: "R3 1.2 EA111" },
+            { engine: "CGRA", powerclass: "B6", powerhp: "280", model: "", year: "", comments: "" },
+            { engine: "CGYA", powerclass: "63", powerhp: "152", model: "", year: "", comments: "" },
+            { engine: "CGWB", powerclass: "B9", powerhp: "300", model: "", year: "", comments: "" },
+            { engine: "CHHB", powerclass: "8F", powerhp: "220", model: "Superb III", year: "2021", comments: "2.0 FSI" },
+            { engine: "CHPA", powerclass: "5F", powerhp: "140", model: "Octavia A7", year: "2014", comments: "1.4 TSI" },
+            { engine: "CHZC", powerclass: "F5", powerhp: "110", model: "Fabia", year: "2021", comments: "R3 1.0 TFSI EA211" },
+            { engine: "CJAA", powerclass: "FE", powerhp: "140", model: "Jetta 5", year: "2010", comments: "R4 2.0 TDI EA189" },
+            { engine: "CJKA", powerclass: "89", powerhp: "204", model: "T5 Multivan", year: "2013", comments: "R4 2.0 TFSI EA888 Gen2" },
+            { engine: "CJSB", powerclass: "5C", powerhp: "180", model: "Audi A3", year: "2014", comments: "1.8" },
+            { engine: "CJTB", powerclass: "BE", powerhp: "333", model: "Audi Q7", year: "", comments: "3.0 V6" },
+            { engine: "CJXC", powerclass: "AC", powerhp: "300", model: "", year: "", comments: "" },
+            { engine: "CJZA", powerclass: "39", powerhp: "105", model: "Seat Leon", year: "2013", comments: "1.2 TSI" },
+            { engine: "CJZB", powerclass: "21", powerhp: "85", model: "", year: "", comments: "1.2 EA211" },
+            { engine: "CJZC", powerclass: "91", powerhp: "90", model: "Seat Leon", year: "2016", comments: "R4 1.2 TFSI EA211" },
+            { engine: "CJZD", powerclass: "E6", powerhp: "110", model: "Fabia 3", year: "2015", comments: "1.2 TSI" },
+            { engine: "CKBB", powerclass: "0F", powerhp: "512", model: "Bentley", year: "", comments: "" },
+            { engine: "CKFS", powerclass: "A3", powerhp: "150", model: "Octavia A7", year: "2014", comments: "2.0 TDI" },
+            { engine: "CLCB", powerclass: "51", powerhp: "140", model: "Yeti", year: "2015", comments: "2.0 TDI 4x4" },
+            { engine: "CLJA", powerclass: "FE", powerhp: "", model: "Tiguan", year: "", comments: "" },
+            { engine: "CMBA", powerclass: "42", powerhp: "122", model: "", year: "", comments: "" },
+            { engine: "CNCB", powerclass: "6F", powerhp: "", model: "", year: "", comments: "" },
+            { engine: "CNCD", powerclass: "C4", powerhp: "", model: "", year: "", comments: "" },
+            { engine: "CNCE", powerclass: "96", powerhp: "", model: "", year: "", comments: "" },
+            { engine: "CPPA", powerclass: "88", powerhp: "211", model: "", year: "", comments: "" },
+            { engine: "CPTA", powerclass: "5F", powerhp: "140", model: "Audi A3 Sportback", year: "2014", comments: "1.4 TSI" },
+            { engine: "CPRA", powerclass: "6A", powerhp: "170", model: "Passat USA", year: "2017", comments: "1.8 TFSI" },
+            { engine: "CRLB", powerclass: "A3", powerhp: "150", model: "Superb", year: "2017", comments: "R4 2.0 TDI EA288" },
+            { engine: "CRMB", powerclass: "51", powerhp: "150", model: "", year: "", comments: "" },
+            { engine: "CREC", powerclass: "64", powerhp: "333", model: "", year: "", comments: "" },
+            { engine: "CSHA", powerclass: "2B", powerhp: "180", model: "Amarok", year: "2014", comments: "" },
+            { engine: "CTSA", powerclass: "C9", powerhp: "310", model: "Audi Q3 RS", year: "2014", comments: "2.5" },
+            { engine: "CTHD", powerclass: "5B", powerhp: "160", model: "", year: "", comments: "" },
+            { engine: "CTHE", powerclass: "3F", powerhp: "180", model: "", year: "", comments: "" },
+            { engine: "CUAA", powerclass: "D6", powerhp: "240", model: "Tiguan", year: "2020", comments: "2.0 BTD" },
+            { engine: "CULA", powerclass: "6F", powerhp: "180", model: "", year: "", comments: "" },
+            { engine: "CULC", powerclass: "8F", powerhp: "220", model: "", year: "", comments: "" },
+            { engine: "CWVA", powerclass: "84", powerhp: "110", model: "Yeti", year: "2015", comments: "1.6 SRE" },
+            { engine: "CWVA", powerclass: "84", powerhp: "110", model: "Octavia A7", year: "2016", comments: "R4 1.6 EA211" },
+            { engine: "CWVB", powerclass: "11", powerhp: "90", model: "", year: "", comments: "" },
+            { engine: "CXCA", powerclass: "88", powerhp: "", model: "", year: "", comments: "Simos 18.1" },
+            { engine: "CXHB", powerclass: "A3", powerhp: "114", model: "Transporter", year: "", comments: "2.0 TDI" },
+            { engine: "CXSA", powerclass: "42", powerhp: "122", model: "Audi A3", year: "2014", comments: "1.4" },
+            { engine: "CYVB", powerclass: "E6", powerhp: "110", model: "", year: "", comments: "" },
+            { engine: "CYVD", powerclass: "39", powerhp: "104", model: "", year: "", comments: "1.2 EA211" },
+            { engine: "CZCA", powerclass: "49", powerhp: "125", model: "", year: "", comments: "" },
+            { engine: "CZDA", powerclass: "D5", powerhp: "150", model: "", year: "", comments: "R4 1.4 TFSI EA211" },
+            { engine: "CZEA", powerclass: "D5", powerhp: "150", model: "Audi A3", year: "", comments: "" },
+            { engine: "CZGB", powerclass: "C0", powerhp: "367", model: "", year: "", comments: "" },
+            { engine: "CZPA", powerclass: "6F", powerhp: "180", model: "", year: "", comments: "" },
+            { engine: "CZTA", powerclass: "D5", powerhp: "150", model: "Jetta USA", year: "", comments: "R4 1.4 TFSI EA211" },
+            { engine: "DAZA", powerclass: "C7", powerhp: "400", model: "Audi RS3", year: "", comments: "" },
+            { engine: "DDKA", powerclass: "6B", powerhp: "299", model: "", year: "", comments: "" },
+            { engine: "DFSB", powerclass: "A3", powerhp: "150", model: "", year: "", comments: "" },
+            { engine: "DFSD", powerclass: "8E", powerhp: "102", model: "", year: "", comments: "" },
+            { engine: "DFSF", powerclass: "6", powerhp: "75", model: "", year: "", comments: "" },
+            { engine: "DGUA", powerclass: "76", powerhp: "186", model: "Tiguan", year: "2019", comments: "2.0 TFSI" },
+            { engine: "DJSA", powerclass: "D5", powerhp: "150", model: "Audi Q3", year: "2023", comments: "1.4 TSI" },
+            { engine: "DNNA", powerclass: "A3", powerhp: "150", model: "T6.1", year: "2022", comments: "2.0 TDI" },
+            { engine: "DJKA", powerclass: "D5", powerhp: "150", model: "Octavia A8", year: "2021", comments: "1.4 TSI" },
+            { engine: "DPCA", powerclass: "73", powerhp: "150", model: "Scala", year: "2021", comments: "1.5 TSI" },
+            { engine: "DLLA", powerclass: "F5", powerhp: "110", model: "Scala", year: "2022", comments: "1.0 FSI" },
+            { engine: "DSGD", powerclass: "28", powerhp: "80", model: "Fabia IV", year: "2022", comments: "1.0 MPI" },
+            { engine: "DKRF", powerclass: "8E", powerhp: "115", model: "Scala", year: "2020", comments: "1.0 FSI" }
+        ];
+
+        // Получаем уникальные engine для списка
+        const uniqueEngines = [...new Set(engines.map(e => e.engine))].sort();
+
+        const select = document.getElementById('engineSelect');
+        const infoCard = document.getElementById('infoCard');
+        const emptyMessage = document.getElementById('emptyMessage');
+
+        // Заполняем выпадающий список
+        uniqueEngines.forEach(engine => {
+            const option = document.createElement('option');
+            option.value = engine;
+            option.textContent = engine;
+            select.appendChild(option);
+        });
+
+        // Обработка выбора
+        select.addEventListener('change', function() {
+            const selectedEngine = this.value;
+            infoCard.innerHTML = '';
+            infoCard.classList.remove('show');
+            emptyMessage.style.display = 'none';
+
+            if (!selectedEngine) {
+                return;
+            }
+
+            const records = engines.filter(e => e.engine === selectedEngine);
+            if (records.length === 0) {
+                emptyMessage.style.display = 'block';
+                return;
+            }
+
+            records.forEach((record, index) => {
+                const recordDiv = document.createElement('div');
+                recordDiv.className = 'record';
+
+                // Заголовок с индексом, если несколько записей
+                const title = document.createElement('div');
+                title.className = 'record-title';
+                title.textContent = (records.length > 1 ? `Вариант ${index + 1}: ` : '') + record.engine;
+                recordDiv.appendChild(title);
+
+                // Детали
+                const details = document.createElement('div');
+                details.className = 'record-details';
+
+                const fields = [
+                    { label: 'Powerclass', value: record.powerclass },
+                    { label: 'Power hp', value: record.powerhp },
+                    { label: 'Model', value: record.model || '—' },
+                    { label: 'Year', value: record.year || '—' }
+                ];
+
+                fields.forEach(field => {
+                    const detailItem = document.createElement('div');
+                    detailItem.className = 'detail-item';
+                    const label = document.createElement('div');
+                    label.className = 'detail-label';
+                    label.textContent = field.label;
+                    const value = document.createElement('div');
+                    value.className = 'detail-value';
+                    value.textContent = field.value;
+                    detailItem.appendChild(label);
+                    detailItem.appendChild(value);
+                    details.appendChild(detailItem);
+                });
+
+                recordDiv.appendChild(details);
+
+                // Комментарий
+                if (record.comments && record.comments.trim() !== '') {
+                    const comment = document.createElement('div');
+                    comment.className = 'comment';
+                    comment.textContent = '💬 ' + record.comments;
+                    recordDiv.appendChild(comment);
+                }
+
+                infoCard.appendChild(recordDiv);
+            });
+
+            infoCard.classList.add('show');
+        });
+    </script>
+</body>
+</html>
