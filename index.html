@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <title>VAG Engine Selector</title>
+    <title>VAG Engine Info</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -26,19 +26,39 @@
         h1 { text-align: center; margin-bottom: 10px; font-size: 1.6rem; letter-spacing: 1px; }
         .subtitle { text-align: center; opacity: 0.8; margin-bottom: 20px; font-size: 0.9rem; }
 
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab {
+            flex: 1; padding: 10px; border: none; border-radius: 10px;
+            background: rgba(255,255,255,0.1); color: white; cursor: pointer; font-weight: 600;
+            transition: 0.3s;
+        }
+        .tab.active { background: #4a90e2; box-shadow: 0 4px 12px rgba(74,144,226,0.4); }
+        .mode-block { display: none; }
+        .mode-block.active { display: block; }
+
         label { display: block; margin-top: 15px; font-size: 0.9rem; opacity: 0.9; }
 
-        select {
+        select, input[type="text"] {
             width: 100%; padding: 12px; margin-top: 5px; border-radius: 10px;
             border: none; background: rgba(255,255,255,0.15); color: #fff;
             font-size: 1rem; font-family: monospace; letter-spacing: 1px;
-            outline: none; transition: 0.3s; appearance: none; -webkit-appearance: none;
+            outline: none; transition: 0.3s;
+        }
+        select:focus, input[type="text"]:focus { background: rgba(255,255,255,0.25); box-shadow: 0 0 0 2px #4a90e2; }
+        select {
+            appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 35px;
             background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M2%204l4%204%204-4z%22%2F%3E%3C%2Fsvg%3E");
             background-repeat: no-repeat; background-position: right 10px center;
-            cursor: pointer;
         }
-        select:focus { background: rgba(255,255,255,0.25); box-shadow: 0 0 0 2px #4a90e2; }
         select option { background: #203a43; color: #fff; }
+
+        button {
+            width: 100%; padding: 14px; margin-top: 20px; border: none; border-radius: 12px;
+            background: linear-gradient(135deg, #4a90e2, #357abd); color: white;
+            font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(74,144,226,0.4); }
+        button:active { transform: translateY(0); }
 
         .info-card {
             margin-top: 20px; padding: 20px; background: rgba(0,0,0,0.3);
@@ -79,27 +99,49 @@
 <body>
     <div class="container">
         <h1>🔧 VAG Engine Info</h1>
-        <div class="subtitle">Выберите двигатель</div>
+        <div class="subtitle">База двигателей VAG</div>
 
-        <label for="engineSelect">Engine (мотор):</label>
-        <select id="engineSelect">
-            <option value="">-- Выберите двигатель --</option>
-        </select>
-
-        <div class="info-card" id="infoCard">
-            <!-- Сюда будут добавляться записи динамически -->
+        <!-- Переключатель вкладок -->
+        <div class="tabs">
+            <button type="button" class="tab active" data-target="engine-mode">Выбор двигателя</button>
+            <button type="button" class="tab" data-target="powerclass-mode">Поиск по Powerclass</button>
         </div>
-        <div class="empty-message" id="emptyMessage">Данные не найдены</div>
+
+        <!-- Вкладка 1: Выбор двигателя -->
+        <div id="engine-mode" class="mode-block active">
+            <label for="engineSelect">Engine (мотор):</label>
+            <select id="engineSelect">
+                <option value="">-- Выберите двигатель --</option>
+            </select>
+
+            <div class="info-card" id="engineInfoCard">
+                <!-- Сюда будут добавляться записи динамически -->
+            </div>
+            <div class="empty-message" id="engineEmpty">Данные не найдены</div>
+        </div>
+
+        <!-- Вкладка 2: Поиск по Powerclass -->
+        <div id="powerclass-mode" class="mode-block">
+            <label for="powerclassInput">Введите Powerclass (например, "FE", "80"):</label>
+            <input type="text" id="powerclassInput" placeholder="FE, 80, A3...">
+
+            <button type="button" id="searchBtn">Найти двигатели</button>
+
+            <div class="info-card" id="powerclassInfoCard">
+                <!-- Результаты поиска -->
+            </div>
+            <div class="empty-message" id="powerclassEmpty">Ничего не найдено</div>
+        </div>
 
         <div class="info">Источник: Drive2, база моторов VAG</div>
     </div>
 
     <script>
+        // Инициализация Telegram
         const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
+        tg.ready(); tg.expand();
 
-        // ================= ДАННЫЕ (взяты из таблицы, исключены пустые engine) =================
+        // ================= ДАННЫЕ (все записи из таблицы) =================
         const engines = [
             { engine: "AXX", powerclass: "80", powerhp: "200", model: "Golf 5 GTI", year: "2005", comments: "R4 2.0 TFSI EA113" },
             { engine: "AXZ", powerclass: "9E", powerhp: "250", model: "Passat B6", year: "", comments: "3.2 Petrol" },
@@ -158,7 +200,7 @@
             { engine: "CDHA", powerclass: "42", powerhp: "120", model: "Audi A4", year: "", comments: "1.8 TFSI" },
             { engine: "CDHB", powerclass: "63", powerhp: "160", model: "Audi A4", year: "", comments: "1.8 TFSI - MED17.5" },
             { engine: "CDLA", powerclass: "AC", powerhp: "265", model: "Scirocco R", year: "2012", comments: "R4 2.0 TFSI EA113" },
-            { engine: "CDLC", powerclass: "A5", powerhp: "256", model: "", year: "", comments: "" },
+            { engine: "CDLC", powerclass: "A5", powerhp: "265", model: "", year: "", comments: "" },
             { engine: "CDLC", powerclass: "9A", powerhp: "265", model: "", year: "", comments: "" },
             { engine: "CDLJ", powerclass: "8F", powerhp: "220", model: "", year: "", comments: "" },
             { engine: "CDLK", powerclass: "5E", powerhp: "280", model: "", year: "", comments: "" },
@@ -243,38 +285,55 @@
             { engine: "DPCA", powerclass: "73", powerhp: "150", model: "Scala", year: "2021", comments: "1.5 TSI" },
             { engine: "DLLA", powerclass: "F5", powerhp: "110", model: "Scala", year: "2022", comments: "1.0 FSI" },
             { engine: "DSGD", powerclass: "28", powerhp: "80", model: "Fabia IV", year: "2022", comments: "1.0 MPI" },
-            { engine: "DKRF", powerclass: "8E", powerhp: "115", model: "Scala", year: "2020", comments: "1.0 FSI" }
+            { engine: "DKRF", powerclass: "8E", powerhp: "115", model: "Scala", year: "2020", comments: "1.0 FSI" },
+            // Записи с пустым engine (в выпадающем списке не показываются, но могут появиться при поиске по powerclass)
+            { engine: "", powerclass: "07", powerhp: "", model: "Jetta 6", year: "", comments: "" },
+            { engine: "", powerclass: "88", powerhp: "", model: "Passat USA", year: "", comments: "" },
+            { engine: "", powerclass: "9E", powerhp: "120", model: "Passat B6", year: "", comments: "2.0 TDI" }
         ];
 
-        // Получаем уникальные engine для списка
-        const uniqueEngines = [...new Set(engines.map(e => e.engine))].sort();
+        // Элементы управления
+        const tabs = document.querySelectorAll('.tab');
+        const modeBlocks = document.querySelectorAll('.mode-block');
+        const engineSelect = document.getElementById('engineSelect');
+        const engineInfoCard = document.getElementById('engineInfoCard');
+        const engineEmpty = document.getElementById('engineEmpty');
+        const powerclassInput = document.getElementById('powerclassInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const powerclassInfoCard = document.getElementById('powerclassInfoCard');
+        const powerclassEmpty = document.getElementById('powerclassEmpty');
 
-        const select = document.getElementById('engineSelect');
-        const infoCard = document.getElementById('infoCard');
-        const emptyMessage = document.getElementById('emptyMessage');
-
-        // Заполняем выпадающий список
+        // Заполняем выпадающий список уникальными engine (исключаем пустые)
+        const uniqueEngines = [...new Set(engines.filter(e => e.engine).map(e => e.engine))].sort();
         uniqueEngines.forEach(engine => {
             const option = document.createElement('option');
             option.value = engine;
             option.textContent = engine;
-            select.appendChild(option);
+            engineSelect.appendChild(option);
         });
 
-        // Обработка выбора
-        select.addEventListener('change', function() {
-            const selectedEngine = this.value;
-            infoCard.innerHTML = '';
-            infoCard.classList.remove('show');
-            emptyMessage.style.display = 'none';
+        // Переключение вкладок
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                tabs.forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                modeBlocks.forEach(block => block.classList.remove('active'));
+                const targetId = this.getAttribute('data-target');
+                const targetBlock = document.getElementById(targetId);
+                if (targetBlock) {
+                    targetBlock.classList.add('active');
+                }
+            });
+        });
 
-            if (!selectedEngine) {
-                return;
-            }
+        // Функция отображения записей (общая)
+        function renderRecords(records, container, emptyElement) {
+            container.innerHTML = '';
+            container.classList.remove('show');
+            emptyElement.style.display = 'none';
 
-            const records = engines.filter(e => e.engine === selectedEngine);
             if (records.length === 0) {
-                emptyMessage.style.display = 'block';
+                emptyElement.style.display = 'block';
                 return;
             }
 
@@ -282,13 +341,12 @@
                 const recordDiv = document.createElement('div');
                 recordDiv.className = 'record';
 
-                // Заголовок с индексом, если несколько записей
                 const title = document.createElement('div');
                 title.className = 'record-title';
-                title.textContent = (records.length > 1 ? `Вариант ${index + 1}: ` : '') + record.engine;
+                const displayEngine = record.engine || 'Неизвестный двигатель';
+                title.textContent = (records.length > 1 ? `Вариант ${index + 1}: ` : '') + displayEngine;
                 recordDiv.appendChild(title);
 
-                // Детали
                 const details = document.createElement('div');
                 details.className = 'record-details';
 
@@ -315,7 +373,6 @@
 
                 recordDiv.appendChild(details);
 
-                // Комментарий
                 if (record.comments && record.comments.trim() !== '') {
                     const comment = document.createElement('div');
                     comment.className = 'comment';
@@ -323,10 +380,51 @@
                     recordDiv.appendChild(comment);
                 }
 
-                infoCard.appendChild(recordDiv);
+                container.appendChild(recordDiv);
             });
 
-            infoCard.classList.add('show');
+            container.classList.add('show');
+        }
+
+        // Обработка выбора двигателя
+        engineSelect.addEventListener('change', function() {
+            const selectedEngine = this.value;
+            if (!selectedEngine) {
+                engineInfoCard.classList.remove('show');
+                engineEmpty.style.display = 'none';
+                return;
+            }
+            const records = engines.filter(e => e.engine === selectedEngine);
+            renderRecords(records, engineInfoCard, engineEmpty);
+        });
+
+        // Обработка поиска по Powerclass
+        function searchByPowerclass() {
+            const query = powerclassInput.value.trim().toUpperCase();
+            if (!query) {
+                powerclassInfoCard.classList.remove('show');
+                powerclassEmpty.style.display = 'none';
+                return;
+            }
+
+            // Точное совпадение (без учета регистра)
+            const records = engines.filter(e => e.powerclass.toUpperCase() === query);
+            renderRecords(records, powerclassInfoCard, powerclassEmpty);
+        }
+
+        searchBtn.addEventListener('click', searchByPowerclass);
+        powerclassInput.addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                searchByPowerclass();
+            }
+        });
+
+        // Очищаем результаты при изменении ввода
+        powerclassInput.addEventListener('input', function() {
+            if (!this.value.trim()) {
+                powerclassInfoCard.classList.remove('show');
+                powerclassEmpty.style.display = 'none';
+            }
         });
     </script>
 </body>
